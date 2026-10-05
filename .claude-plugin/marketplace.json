@@ -1,0 +1,12 @@
+{
+  "name": "metro-map-mod",
+  "description": "A live Nextflow metro map for Claude Code",
+  "owner": { "name": "Cameron Lloyd" },
+  "plugins": [
+    {
+      "name": "metro-map-mod",
+      "source": "./",
+      "description": "Live metro map of a running Nextflow pipeline, inside Claude Code"
+    }
+  ]
+}
