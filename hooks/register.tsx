@@ -151,14 +151,14 @@ export const register: Register = on => {
     const d = await read($, dag)
     if (d && d.runId === r.id && d.nodes.length > 0) {
       const byName = new Map(r.procs.map(p => [p.name, p]))
-      const { rows, note, title } = metro(d.nodes, d.edges, n => {
+      const { rows, title } = metro(d.nodes, d.edges, n => {
         const st = statusOf(byName.get(n))
         return st === 'pending' && r.status !== 'running' ? 'skipped' : st
       }, e.props.bodyColumns ?? e.viewport?.columns ?? 100)
       return (
         <Box flexDirection="column">
           <Text bold color={headColor}>{head}</Text>
-          <Text dimColor>{[title, r.name, note].filter(Boolean).join(' · ')}</Text>
+          <Text dimColor>{[title, r.name].filter(Boolean).join(' · ')}</Text>
           {rows.slice(0, room).map(row => (
             <Text wrap="truncate">
               {row.map(s => <Text color={s.color} bold={s.bold} dimColor={s.dim}>{s.text}</Text>)}
