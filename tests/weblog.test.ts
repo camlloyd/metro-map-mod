@@ -26,6 +26,9 @@ test('folds weblog events into per-process counts', async () => {
   expect(applyEvent(run, { event: 'completed', runId: 'r1', metadata: { workflow: { success: true } } })!.status).toBe('done')
   expect(applyEvent(run, { event: 'completed', runId: 'r1', metadata: { workflow: { success: false } } })!.status).toBe('failed')
   expect(applyEvent(run, { event: 'error', runId: 'r1' })!.status).toBe('failed')
+  // A failure's `completed` after its `error` changes nothing, so the run ends (and toasts) once.
+  const failed = applyEvent(run, { event: 'error', runId: 'r1' })
+  expect(applyEvent(failed, { event: 'completed', runId: 'r1', metadata: { workflow: { success: false } } })).toBe(failed)
 })
 
 test('cached tasks, which the weblog never sends, come from the log', async () => {
