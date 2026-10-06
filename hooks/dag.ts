@@ -67,11 +67,12 @@ export function pipelineOf(nodes: readonly string[]): { title: string; depth: nu
 /**
  * Draws the DAG as an nf-core-style metro map, left to right: each analysis route a coloured line through
  * its stations (processes) by graph depth, forks and merges as vertical links, subworkflows as bracketed sections.
- * Returns rows of styled segments sized to `width` columns.
+ * Returns rows of styled segments sized to `width` columns, and which columns they show
+ * (`count` of `of` from `from`; `follow` is where the window sits unshifted).
  */
 export function metro(nodes: readonly string[], edges: readonly (readonly [string, string])[],
-  statusOf: (n: string) => Status, width: number): { rows: Seg[][]; note: string; title: string } {
-  if (nodes.length === 0) return { rows: [], note: 'empty DAG', title: '' }
+  statusOf: (n: string) => Status, width: number, shift = 0): { rows: Seg[][]; title: string; from: number; follow: number; count: number; of: number } {
+  if (nodes.length === 0) return { rows: [], title: '', from: 0, follow: 0, count: 0, of: 0 }
   const { title, depth } = pipelineOf(nodes)
   const section = (n: string) => n.split(':').slice(depth, -1)[0] ?? ''
   const kids = new Map<string, string[]>(), parents = new Map<string, string[]>(), indeg = new Map(nodes.map(n => [n, 0]))
@@ -135,12 +136,13 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
   const isLit = (r: number, x: number, side: 'left' | 'right') =>
     litSpans[r]!.some(([lo, hi]) => (side === 'left' ? lo < x && x <= hi : lo <= x && x < hi))
 
-  // Fit: shrink station columns, then window around the first column still running or pending.
+  // Fit: shrink station columns, then window around the first column still running or pending, moved `shift` columns.
   const fitW = (cols: number) => Math.floor((width - 3 * (cols + 1)) / cols)
   const W = Math.max(10, Math.min(14, fitW(L)))
   const k = Math.max(1, Math.min(L, Math.floor((width - 3) / (W + 3))))
   const active = order.find(n => statusOf(n) !== 'done')
-  const c0 = Math.max(0, Math.min(L - k, (active ? layer.get(active)! : L) - 1))
+  const window = (at: number) => Math.max(0, Math.min(L - k, at))
+  const follow = window((active ? layer.get(active)! : L) - 1), c0 = window(follow + shift)
   const x0 = 2 * c0, x1 = 2 * (c0 + k)
   const cellW = (x: number) => (x % 2 === 0 ? 3 : W)
   const station = new Map<string, string>() // "r,x" -> node
@@ -237,6 +239,5 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
     }
     rows.push(bracket)
   }
-  const note = k < L ? `columns ${c0 + 1}–${c0 + k} of ${L}` : ''
-  return { rows, note, title }
+  return { rows, title, from: c0, follow, count: k, of: L }
 }

@@ -7,6 +7,6 @@ export type Dag = { runId: string; nodes: string[]; edges: [string, string][]; e
 
 declare module 'claude-code' {
   interface PluginState {
-    'metro-map-mod': { run: Run | null; dag: Dag | null; port: number | null }
+    'metro-map-mod': { run: Run | null; dag: Dag | null; port: number | null; pan: number }
   }
 }
