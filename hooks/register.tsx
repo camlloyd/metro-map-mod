@@ -80,12 +80,10 @@ async function onEvent($: EngineInterface, ev: WeblogEvent) {
     // ponytail: assumes the default .nextflow.log in the launch dir; a `-log elsewhere` resume shows cached stations as skipped
     if (next.isResume) cachedTimer = $.clock.every(2000, () => void fillCached($, next.id))
   }
-  const t = tally(next.procs)
-  if (next.status === 'running') $.ui.status(`nextflow ${t.done}/${t.total} tasks`)
-  else {
+  if (next.status !== 'running') {
     cachedTimer?.cancel()
     if (next.isResume) await fillCached($, next.id)
-    $.ui.status(undefined)
+    const t = tally((await read($, run))?.procs ?? next.procs)
     $.ui.toast(`Nextflow run ${next.status}: ${t.done}/${t.total} tasks${t.failed ? `, ${t.failed} failed` : ''}`)
   }
 }
@@ -145,22 +143,22 @@ export const register: Register = on => {
     if (!r) return <Text dimColor>No Nextflow run yet. The map opens when one starts.</Text>
 
     const room = Math.max(3, (e.viewport?.rows ?? 30) - 5)
-    const t = tally(r.procs)
-    const head = r.status === 'waiting' ? 'waiting for Nextflow to start…' : `${r.status} · ${t.done}/${t.total} tasks${t.running ? ` · ${t.running} running` : ''}${t.failed ? ` · ${t.failed} failed` : ''}`
+    const { failed } = tally(r.procs)
+    const head = r.status === 'waiting' ? 'waiting for Nextflow to start…' : `${r.status}${failed ? ` · ${failed} failed` : ''}`
     const headColor = r.status === 'failed' ? 'red' : r.status === 'done' ? 'green' : undefined
 
     // The metro map once the -preview DAG is in.
     const d = await read($, dag)
     if (d && d.runId === r.id && d.nodes.length > 0) {
       const byName = new Map(r.procs.map(p => [p.name, p]))
-      const { rows, note, title } = metro(d.nodes, d.edges, n => {
+      const { rows, title } = metro(d.nodes, d.edges, n => {
         const st = statusOf(byName.get(n))
         return st === 'pending' && r.status !== 'running' ? 'skipped' : st
       }, e.props.bodyColumns ?? e.viewport?.columns ?? 100)
       return (
         <Box flexDirection="column">
           <Text bold color={headColor}>{head}</Text>
-          <Text dimColor>{[title, r.name, note].filter(Boolean).join(' · ')}</Text>
+          <Text dimColor>{[title, r.name].filter(Boolean).join(' · ')}</Text>
           {rows.slice(0, room).map(row => (
             <Text wrap="truncate">
               {row.map(s => <Text color={s.color} bold={s.bold} dimColor={s.dim}>{s.text}</Text>)}
@@ -177,11 +175,10 @@ export const register: Register = on => {
         {r.dir !== '' && <Text dimColor>{[r.name, d?.error ? `DAG preview failed: ${d.error}` : 'building the map…'].filter(Boolean).join(' · ')}</Text>}
         {r.procs.slice(-room).map(p => {
           const s = STATION[statusOf(p)]
-          const c = tally([p])
           return (
             <Text wrap="truncate">
               <Text color={s.color} bold={s.bold} dimColor={s.dim}>{s.text}</Text> {p.name}
-              <Text dimColor> {c.done}/{c.total}{c.failed ? ` ✖${c.failed}` : ''}</Text>
+              {p.failed > 0 && <Text dimColor> ✖{p.failed}</Text>}
             </Text>
           )
         })}
