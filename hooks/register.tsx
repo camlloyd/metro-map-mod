@@ -2,8 +2,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Dag, Run } from '../types'
-import { metro, parseDot, STATION } from './dag'
-import { applyCached, applyEvent, dagConfig, previewArgv, statusOf, tally, WEBLOG_CONFIG, withWeblog } from './weblog'
+import { metro, parseDot, pipelineOf, STATION } from './dag'
+import { applyCached, applyEvent, dagConfig, endToast, previewArgv, statusOf, tally, WEBLOG_CONFIG, withWeblog } from './weblog'
 import type { WeblogEvent } from './weblog'
 
 const PANE = 'metro-map'
@@ -68,8 +68,9 @@ async function listen($: EngineInterface) {
 
 async function onEvent($: EngineInterface, ev: WeblogEvent) {
   const before = await read($, run)
-  const next = applyEvent(before, ev)
-  if (!next || next === before) return
+  const applied = applyEvent(before, ev)
+  if (!applied || applied === before) return
+  const next = ev.event === 'started' ? { ...applied, startedAt: Date.now() } : applied
   await update($, run, () => next)
 
   if (ev.event === 'started') {
@@ -83,8 +84,9 @@ async function onEvent($: EngineInterface, ev: WeblogEvent) {
   if (next.status !== 'running') {
     cachedTimer?.cancel()
     if (next.isResume) await fillCached($, next.id)
-    const t = tally((await read($, run))?.procs ?? next.procs)
-    $.ui.toast(`Nextflow run ${next.status}: ${t.done}/${t.total} tasks${t.failed ? `, ${t.failed} failed` : ''}`)
+    const d = await read($, dag)
+    const pipeline = (d?.runId === next.id && pipelineOf(d.nodes).title.toLowerCase()) || next.name || 'Nextflow run'
+    $.ui.toast(endToast((await read($, run)) ?? next, pipeline, next.startedAt && Date.now() - next.startedAt))
   }
 }
 

@@ -87,6 +87,23 @@ export const tally = (procs: Proc[]) => {
   return { done, total, failed, running }
 }
 
+/** How long a run took, Nextflow-style: `45s`, `23m 10s`, `2h 5m`. */
+export const took = (ms: number) => {
+  const s = Math.round(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60)
+  return h ? `${h}h ${m}m` : m ? `${m}m ${s % 60}s` : `${s}s`
+}
+
+/** The end-of-run toast: `genomeqc done in 23m 10s · 52 succeeded · 49 cached`, or `genomeqc failed after 4m 2s at BUSCO_BUSCO +1 more`. */
+export function endToast(run: Run, pipeline: string, ms?: number): string {
+  if (run.status === 'failed') {
+    const [first, ...rest] = run.procs.filter(p => p.failed > 0).map(p => p.name.split(':').pop()!)
+    return `${pipeline} failed${ms === undefined ? '' : ` after ${took(ms)}`}` +
+      (first ? ` at ${first}${rest.length ? ` +${rest.length} more` : ''}` : '')
+  }
+  const done = run.procs.reduce((n, p) => n + p.completed, 0), cached = run.procs.reduce((n, p) => n + p.cached, 0)
+  return `${pipeline} done${ms === undefined ? '' : ` in ${took(ms)}`} · ${done} succeeded${cached ? ` · ${cached} cached` : ''}`
+}
+
 /** A process's station state from its task counts. */
 export const statusOf = (p: Proc | undefined): Status => {
   if (!p) return 'pending'

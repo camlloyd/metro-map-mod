@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { applyCached, applyEvent, previewArgv, statusOf, withWeblog } from '../hooks/weblog'
+import { applyCached, applyEvent, endToast, previewArgv, statusOf, took, withWeblog } from '../hooks/weblog'
 import type { WeblogEvent } from '../hooks/weblog'
 
 // Shapes as Nextflow 25.10 posts them to weblog.url.
@@ -83,4 +83,15 @@ test('station state from task counts', async () => {
   expect(statusOf(p(0, 0, 0, 3))).toBe('done') // all cached on -resume
   expect(statusOf(p(1, 0, 1))).toBe('failed')
   expect(statusOf(p(2, 1, 1))).toBe('done') // failed, then retried ok
+})
+
+test('the end-of-run toast: time, counts, and where it failed', async () => {
+  const run = applyEvent(null, started)!
+  const proc = (name: string, completed: number, failed: number, cached = 0) => ({ name, submitted: completed + failed, completed, failed, cached })
+  expect([took(45_000), took(1_390_000), took(7_500_000)]).toEqual(['45s', '23m 10s', '2h 5m'])
+  expect(endToast({ ...run, status: 'done', procs: [proc(P, 3, 0, 49)] }, 'toy', 64_000)).toBe('toy done in 1m 4s · 3 succeeded · 49 cached')
+  expect(endToast({ ...run, status: 'done', procs: [proc(P, 52, 1)] }, 'toy', 1_390_000)).toBe('toy done in 23m 10s · 52 succeeded') // retried ok
+  const failed = { ...run, status: 'failed' as const, procs: [proc(P, 1, 0), proc('A:B:BUSCO_BUSCO', 0, 2), proc('A:QUAST', 0, 1)] }
+  expect(endToast(failed, 'toy', 242_000)).toBe('toy failed after 4m 2s at BUSCO_BUSCO +1 more')
+  expect(endToast({ ...failed, procs: [] }, 'toy')).toBe('toy failed') // died before any task
 })

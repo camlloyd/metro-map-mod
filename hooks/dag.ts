@@ -54,7 +54,15 @@ const BOX: Record<string, string> = { // horizontal-only falls back to ━
   '0101': '┏', '0110': '┓', '1001': '┗', '1010': '┛', '0111': '┳', '1011': '┻',
   '1101': '┣', '1110': '┫', '1111': '╋',
 }
-const short = (n: string) => n.split(':').pop() ?? n
+export const short = (n: string) => n.split(':').pop() ?? n
+
+/** Every process shares the pipeline's own workflow path (NFCORE_X:X): its last part is the title, `depth` its length. */
+export function pipelineOf(nodes: readonly string[]): { title: string; depth: number } {
+  const paths = nodes.map(n => n.split(':').slice(0, -1))
+  let depth = 0
+  while (paths.length && paths.every(p => p.length > depth && p[depth] === paths[0]![depth])) depth++
+  return { title: paths[0]?.slice(0, depth).at(-1) ?? '', depth }
+}
 
 /**
  * Draws the DAG as an nf-core-style metro map, left to right: each analysis route a coloured line through
@@ -64,11 +72,7 @@ const short = (n: string) => n.split(':').pop() ?? n
 export function metro(nodes: readonly string[], edges: readonly (readonly [string, string])[],
   statusOf: (n: string) => Status, width: number): { rows: Seg[][]; note: string; title: string } {
   if (nodes.length === 0) return { rows: [], note: 'empty DAG', title: '' }
-  // Every process shares the pipeline's own workflow path (NFCORE_X:X): that is the title; what follows it is the section.
-  const paths = nodes.map(n => n.split(':').slice(0, -1))
-  let depth = 0
-  while (paths.every(p => p.length > depth && p[depth] === paths[0]![depth])) depth++
-  const title = paths[0]!.slice(0, depth).at(-1) ?? ''
+  const { title, depth } = pipelineOf(nodes)
   const section = (n: string) => n.split(':').slice(depth, -1)[0] ?? ''
   const kids = new Map<string, string[]>(), parents = new Map<string, string[]>(), indeg = new Map(nodes.map(n => [n, 0]))
   for (const [a, b] of edges) {
