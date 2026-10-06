@@ -16,9 +16,9 @@ test('folds operators away, keeping process->process edges', async () => {
 test('draws a metro map: one track per route, branch and join links, sections', async () => {
   const { nodes, edges } = parseDot(DOT)
   const status = (n: string): Status => (n.endsWith('FASTQC') ? 'done' : n.endsWith('TRIMGALORE') ? 'running' : 'pending')
-  const { rows, note, title } = metro(nodes, edges, status, 120)
+  const { rows, title, count, of } = metro(nodes, edges, status, 120)
   const text = rows.map(r => r.map(s => s.text).join('').trimEnd()).join('\n')
-  expect(note).toBe('') // it all fits
+  expect(count).toBe(of) // it all fits
   expect(text).toContain('┳')
   expect(text).toContain('┗')
   expect(text).toContain('┛')
@@ -100,4 +100,16 @@ test('a taken route stays lit along a shared track past an untaken route joining
     if (col + s.text.length > from && col < to) expect(s.color).not.toBe(DIM)
     col += s.text.length
   }
+})
+
+test('a map too wide for the pane shows a window that shifts and stops at the ends', async () => {
+  const nodes = Array.from({ length: 12 }, (_, i) => `NF:P:STEP_${i}`)
+  const edges = nodes.slice(1).map((n, i) => [nodes[i]!, n] as const)
+  const first = (n: string): Status => (n === nodes[0] ? 'running' : 'pending')
+  const auto = metro(nodes, edges, first, 60)
+  expect(auto.count).toBeLessThan(auto.of)
+  expect([auto.from, auto.follow]).toEqual([0, 0])
+  expect(metro(nodes, edges, first, 60, 2).from).toBe(2)
+  expect(metro(nodes, edges, first, 60, 99).from).toBe(auto.of - auto.count) // clamped at the right
+  expect(metro(nodes, edges, first, 60, -5).from).toBe(0) // and the left
 })

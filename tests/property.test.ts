@@ -61,9 +61,9 @@ test('metro: any DAG draws, every process once, no row wider than the pane', asy
     const { nodes, edges } = randomDag(r)
     const width = r.int(60, 220)
     const status = new Map(nodes.map(n => [n, r.pick(STATUSES)]))
-    const { rows, note } = metro(nodes, edges, n => status.get(n)!, width)
+    const { rows, count, of } = metro(nodes, edges, n => status.get(n)!, width)
     for (const row of rows) expect(text(row).length).toBeLessThanOrEqual(width)
-    if (note.startsWith('columns')) return // windowed: only some columns show
+    if (count < of) return // windowed: only some columns show
     const glyphs = rows.flatMap(row => row.filter(s => /^[○◉●✖◌]$/.test(s.text)))
     expect(glyphs.length).toBe(nodes.length)
   })

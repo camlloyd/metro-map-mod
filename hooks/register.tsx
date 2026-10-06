@@ -11,6 +11,8 @@ const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Metro map
 const run = atom({ plugin: 'metro-map-mod', key: 'run' } as const, null)
 const dag = atom({ plugin: 'metro-map-mod', key: 'dag' } as const, null)
 const lastPort = atom({ plugin: 'metro-map-mod', key: 'port' } as const, null)
+// Columns the person moved the map from where it follows the run by itself.
+const pan = atom({ plugin: 'metro-map-mod', key: 'pan' } as const, 0)
 
 // A local endpoint for Nextflow's weblog: writes a config file pointing at it, prints its port and that file, then each
 // event posted to it as one JSON line. It takes the port it had before a reload (argv[1]) if that frees up within ~2s,
@@ -75,6 +77,7 @@ async function onEvent($: EngineInterface, ev: WeblogEvent) {
 
   if (ev.event === 'started') {
     await update($, dag, () => null)
+    await update($, pan, () => 0)
     void openPane($)
     void preview($, next)
     cachedTimer?.cancel()
@@ -140,7 +143,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
     const r = await read($, run)
     if (!r) return <Text dimColor>No Nextflow run yet. The map opens when one starts.</Text>
 
@@ -153,14 +156,21 @@ export const register: Register = on => {
     const d = await read($, dag)
     if (d && d.runId === r.id && d.nodes.length > 0) {
       const byName = new Map(r.procs.map(p => [p.name, p]))
-      const { rows, title } = metro(d.nodes, d.edges, n => {
+      const { rows, title, from, follow, count, of } = metro(d.nodes, d.edges, n => {
         const st = statusOf(byName.get(n))
         return st === 'pending' && r.status !== 'running' ? 'skipped' : st
-      }, e.props.bodyColumns ?? e.viewport?.columns ?? 100)
+      }, e.props.bodyColumns ?? e.viewport?.columns ?? 100, await read($, pan))
+      // A page less one column per press, so one station stays in view; set from where it shows, so an edge doesn't stick.
+      const step = Math.max(1, count - 1)
+      const move = (by: number) => () => void update($, pan, () => from + by - follow)
       return (
         <Box flexDirection="column">
           <Text bold color={headColor}>{head}</Text>
-          <Text dimColor>{[title, r.name].filter(Boolean).join(' · ')}</Text>
+          <Box flexDirection="row">
+            {from > 0 && <Button plain label="◀" onPress={move(-step)} />}
+            <Text dimColor> {[title, r.name].filter(Boolean).join(' · ')} </Text>
+            {from + count < of && <Button plain label="▶" onPress={move(step)} />}
+          </Box>
           {rows.slice(0, room).map(row => (
             <Text wrap="truncate">
               {row.map(s => <Text color={s.color} bold={s.bold} dimColor={s.dim}>{s.text}</Text>)}
