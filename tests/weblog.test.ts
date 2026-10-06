@@ -75,6 +75,8 @@ test('turns the logged command into a preview', async () => {
     '-c', 'x.config', 'run', 'main.nf', '-preview', '-c', '/t/dag.config', '--outdir', '/t/out'])
   expect(previewArgv('nextflow run main.nf -preview', '/t')!.filter(a => a === '-preview')).toEqual(['-preview'])
   expect(previewArgv('no command here', '/t')).toBe(undefined)
+  expect(previewArgv('nextflow run -resume main.nf', '/t')!.slice(4, 6)).toEqual(['run', 'main.nf'])
+  expect(previewArgv('nextflow run main.nf -resume 4dc656d2-c410-44c8-bc32-7dd0ea87bebf', '/t')!.slice(4, 7)).toEqual(['run', 'main.nf', '-preview'])
 })
 
 test('station state from task counts', async () => {
