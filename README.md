@@ -44,6 +44,8 @@ nextflow run nf-core/fetchngs -profile test,docker --input ids.csv --download_me
 - Re-runs the command once with `-preview -with-dag` for the graph, in
   `.nextflow/metro-map/` with its own `NXF_CACHE_DIR`, so your history is untouched.
 - On `-resume`, cached tasks come from `.nextflow.log`.
+- When the run ends, a toast says how it went: `fetchngs done in 2m 3s · 6 succeeded`, or
+  `fetchngs failed after 40s at SRA_FASTQ_FTP`.
 
 ## Develop
 
