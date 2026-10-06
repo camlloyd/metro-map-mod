@@ -33,6 +33,8 @@ export function applyEvent(run: Run | null, e: WeblogEvent): Run | null {
     const isOk = e.trace!.status === 'COMPLETED'
     return bump(run, process, p => (isOk ? { ...p, completed: p.completed + 1 } : { ...p, failed: p.failed + 1 }))
   }
+  // A failure sends `error` then `completed`: the first one ends the run, so it toasts once.
+  if ((e.event === 'error' || e.event === 'completed') && run.status !== 'running') return run
   if (e.event === 'error') return { ...run, status: 'failed' }
   if (e.event === 'completed') return { ...run, status: wf?.success === false ? 'failed' : 'done' }
   return run
