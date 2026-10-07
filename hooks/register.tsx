@@ -168,7 +168,7 @@ export const register: Register = on => {
           <Text bold color={headColor}>{head}</Text>
           <Box flexDirection="row">
             {from > 0 && <Button plain label="◀" onPress={move(-step)} />}
-            <Text dimColor> {[title, r.name].filter(Boolean).join(' · ')} </Text>
+            <Text dimColor>{from > 0 ? ' ' : ''}{[title, r.name].filter(Boolean).join(' · ')}{from + count < of ? ' ' : ''}</Text>
             {from + count < of && <Button plain label="▶" onPress={move(step)} />}
           </Box>
           {rows.slice(0, room).map(row => (
