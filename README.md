@@ -1,7 +1,6 @@
 # metro-map-mod
 
-A Claude Code mod: when Claude runs `nextflow run`, a pane draws the pipeline as a live
-metro map.
+A Claude Code [mod](https://code.claude.com/docs/en/plugins/mods/overview): when Claude runs a [Nextflow](https://www.nextflow.io) pipeline, a pane draws the pipeline as a live metro map.
 
 ```
 FETCHNGS · stupefied_becquerel
