@@ -72,6 +72,23 @@ test('a fan-out junction is lit when the taken route leaves through it, whicheve
   }
 })
 
+test('a join never rides a track through a station it does not feed (fetchngs: downloads past sratools)', async () => {
+  const W = (n: string) => `W:${n}`
+  const nodes = ['A', 'F', 'ASPERA', 'FTP', 'DL', 'NCBI', 'PREFETCH', 'DUMP', 'MQC'].map(W)
+  const edges = ([['A', 'F'], ['F', 'NCBI'], ['F', 'ASPERA'], ['F', 'FTP'], ['F', 'DL'], ['F', 'PREFETCH'], ['NCBI', 'PREFETCH'],
+    ['NCBI', 'DUMP'], ['PREFETCH', 'DUMP'], ['DUMP', 'MQC'], ['ASPERA', 'MQC'], ['FTP', 'MQC'], ['DL', 'MQC']] as const)
+    .map(([a, b]) => [W(a), W(b)] as [string, string])
+  const { rows } = metro(nodes, edges, () => 'done', 200)
+  const t = rows.findIndex(r => r.filter(s => s.text === '●').length >= 5) // the trunk, through the sratools route
+  const text = rows[t]!.map(s => s.text).join('')
+  // Joins come onto the trunk only after its last station before MQC.
+  const stations = [...text].flatMap((c, i) => (c === '●' ? [i] : []))
+  const mqc = stations.at(-1)!, before = stations.at(-2)!
+  const firstJoin = [...text].findIndex((c, i) => i > stations[2]! && /[┳┻╋┫┣]/.test(c))
+  expect(firstJoin).toBeGreaterThan(before)
+  expect(firstJoin).toBeLessThan(mqc)
+})
+
 test('a long station name wraps onto a second label row at an underscore', async () => {
   const { rows } = metro(['W:GATK4_MARKDUPLICATES', 'W:FASTQC'], [['W:GATK4_MARKDUPLICATES', 'W:FASTQC']], () => 'done', 60)
   const text = rows.map(r => r.map(s => s.text).join(''))
