@@ -74,6 +74,8 @@ test('turns the logged command into a preview', async () => {
   expect(previewArgv(`nextflow -c ${cfg} -log my.log -c x.config run main.nf`, '/t')).toEqual(['nextflow', '-q', '-log', '/t/preview.log',
     '-c', 'x.config', 'run', 'main.nf', '-preview', '-c', '/t/dag.config', '--outdir', '/t/out'])
   expect(previewArgv('nextflow run main.nf -preview', '/t')!.filter(a => a === '-preview')).toEqual(['-preview'])
+  expect(previewArgv('nextflow run main.nf -with-dag dag.mmd -profile x', '/t')!.slice(4, 8)).toEqual(['run', 'main.nf', '-profile', 'x'])
+  expect(previewArgv('nextflow run main.nf -with-dag -profile x', '/t')!.slice(4, 8)).toEqual(['run', 'main.nf', '-profile', 'x'])
   expect(previewArgv('no command here', '/t')).toBe(undefined)
   expect(previewArgv('nextflow run -resume main.nf', '/t')!.slice(4, 6)).toEqual(['run', 'main.nf'])
   expect(previewArgv('nextflow run main.nf -resume 4dc656d2-c410-44c8-bc32-7dd0ea87bebf', '/t')!.slice(4, 7)).toEqual(['run', 'main.nf', '-preview'])
