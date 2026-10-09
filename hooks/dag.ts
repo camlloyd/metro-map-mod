@@ -73,6 +73,15 @@ export function pipelineOf(nodes: readonly string[]): { title: string; depth: nu
 export function metro(nodes: readonly string[], edges: readonly (readonly [string, string])[],
   statusOf: (n: string) => Status, width: number, shift = 0): { rows: Seg[][]; title: string; from: number; follow: number; count: number; of: number } {
   if (nodes.length === 0) return { rows: [], title: '', from: 0, follow: 0, count: 0, of: 0 }
+  // Transitive reduction: drop a -> c when another of a's children already reaches c (a reference file handed to every
+  // later step), so the map keeps every connection but draws each only once.
+  const out = new Map<string, string[]>()
+  for (const [a, b] of edges) out.set(a, [...(out.get(a) ?? []), b])
+  const reach = (from: string, seen = new Set<string>()): Set<string> => {
+    for (const k of out.get(from) ?? []) if (!seen.has(k)) { seen.add(k); reach(k, seen) }
+    return seen
+  }
+  edges = edges.filter(([a, c]) => !(out.get(a) ?? []).some(b => b !== c && reach(b).has(c)))
   const { title, depth } = pipelineOf(nodes)
   const section = (n: string) => n.split(':').slice(depth, -1)[0] ?? ''
   const kids = new Map<string, string[]>(), parents = new Map<string, string[]>(), indeg = new Map(nodes.map(n => [n, 0]))
