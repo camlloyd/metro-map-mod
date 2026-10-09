@@ -132,6 +132,7 @@ export function previewArgv(line: string, tmp: string): string[] | undefined {
     const a = argv[i]!
     if (a === '-bg' || a === '-preview') continue // -preview: we add our own, and Nextflow refuses two
     if (a === '-with-weblog') { i++; continue } // else the preview would report to our own listener
+    if (a === '-with-dag') { if (argv[i + 1] && !argv[i + 1]!.startsWith('-')) i++; continue } // its file would override ours
     // Nextflow only takes `last` or a session UUID as -resume's value; any other next word is its own argument.
     if (a === '-resume') { if (/^(last|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.test(argv[i + 1] ?? '')) i++; continue }
     keep.push(a)
