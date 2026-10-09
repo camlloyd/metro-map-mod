@@ -89,6 +89,15 @@ test('a join never rides a track through a station it does not feed (fetchngs: d
   expect(firstJoin).toBeLessThan(mqc)
 })
 
+test('a shortcut edge is drawn once, through the path that already makes it (transitive reduction)', async () => {
+  // X feeds B and C, but C already follows B on the main line: X -> C needs no line of its own.
+  const nodes = ['W:A', 'W:B', 'W:C', 'W:X']
+  const edges: [string, string][] = [['W:A', 'W:B'], ['W:B', 'W:C'], ['W:X', 'W:B'], ['W:X', 'W:C']]
+  const { rows } = metro(nodes, edges, () => 'done', 200)
+  const x = rows.find(r => r.filter(s => s.text === '●').length === 1)!.map(s => s.text).join('') // X's track
+  expect(x.match(/[┳┻┣┫┏┓┗┛╋]/g)?.length).toBe(1) // one link, to B
+})
+
 test('a long station name wraps onto a second label row at an underscore', async () => {
   const { rows } = metro(['W:GATK4_MARKDUPLICATES', 'W:FASTQC'], [['W:GATK4_MARKDUPLICATES', 'W:FASTQC']], () => 'done', 60)
   const text = rows.map(r => r.map(s => s.text).join(''))
