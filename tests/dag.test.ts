@@ -138,6 +138,14 @@ test('one crowded gap does not shrink the whole window', async () => {
   expect(widest).toBeLessThanOrEqual(100)
 })
 
+test('a crowded gap still fits a narrow pane', async () => {
+  // Three sources each feeding the same two targets: a 7-wide gap. One column always shows, so it has to shrink.
+  const nodes = ['W:S1', 'W:S2', 'W:S3', 'W:T1', 'W:T2']
+  const edges = ['S1', 'S2', 'S3'].flatMap(s => ['T1', 'T2'].map(t => [`W:${s}`, `W:${t}`] as [string, string]))
+  for (const width of [16, 20, 24])
+    for (const row of metro(nodes, edges, () => 'done', width).rows) expect(row.map(s => s.text).join('').length).toBeLessThanOrEqual(width)
+})
+
 test('a long station name wraps onto a second label row at an underscore', async () => {
   const { rows } = metro(['W:GATK4_MARKDUPLICATES', 'W:FASTQC'], [['W:GATK4_MARKDUPLICATES', 'W:FASTQC']], () => 'done', 60)
   const text = rows.map(r => r.map(s => s.text).join(''))
