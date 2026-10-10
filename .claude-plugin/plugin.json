@@ -1,1 +1,1 @@
-{ "name": "metro-map-mod", "version": "0.2.0", "description": "Live metro map of a running Nextflow pipeline, inside Claude Code", "author": { "name": "Cameron Lloyd" }, "license": "MIT", "types": "./types/index.d.ts" }
+{ "name": "metro-map-mod", "version": "0.3.0", "description": "Live metro map of a running Nextflow pipeline, inside Claude Code", "author": { "name": "Cameron Lloyd" }, "license": "MIT", "types": "./types/index.d.ts" }
