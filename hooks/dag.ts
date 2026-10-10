@@ -140,6 +140,19 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
     for (const r of [ra, rb]) span[r] = [Math.min(span[r]![0], x), Math.max(span[r]![1], x)]
   }
 
+  // Channels: links with no end in common that would overlap in a gap get side-by-side verticals, so each vertical
+  // carries one source's fan-out or one target's fan-in, never two unrelated links.
+  type Link = (typeof links)[number]
+  const chan = new Map<Link, number>(), chans = new Map<number, number>() // link -> channel, gap x -> channel count
+  for (const l of links) {
+    const clash = links.filter(q => chan.has(q) && q.x === l.x && q.r1 <= l.r2 && l.r1 <= q.r2 && q.a !== l.a && q.b !== l.b)
+    let c = 0
+    while (clash.some(q => chan.get(q) === c)) c++
+    chan.set(l, c)
+    chans.set(l.x, Math.max(chans.get(l.x) ?? 1, c + 1))
+  }
+  const at = (l: Link) => 1 + 2 * chan.get(l)! // a channel's column within its gap
+
   // Lit stretches per track: where each edge that ran is drawn. A link runs along its source's track to its x,
   // then along its target's track.
   const litSpans: [number, number][][] = lines.map(() => [])
@@ -155,14 +168,16 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
     litSpans[r]!.some(([lo, hi]) => (side === 'left' ? lo < x && x <= hi : lo <= x && x < hi))
 
   // Fit: shrink station columns, then window around the first column still running or pending, moved `shift` columns.
-  const fitW = (cols: number) => Math.floor((width - 3 * (cols + 1)) / cols)
+  // Sized as if every gap were as wide as the widest, so any window fits.
+  const G = 2 * Math.max(1, ...chans.values()) + 1
+  const fitW = (cols: number) => Math.floor((width - G * (cols + 1)) / cols)
   const W = Math.max(10, Math.min(14, fitW(L)))
-  const k = Math.max(1, Math.min(L, Math.floor((width - 3) / (W + 3))))
+  const k = Math.max(1, Math.min(L, Math.floor((width - G) / (W + G))))
   const active = order.find(n => statusOf(n) !== 'done')
   const window = (at: number) => Math.max(0, Math.min(L - k, at))
   const follow = window((active ? layer.get(active)! : L) - 1), c0 = window(follow + shift)
   const x0 = 2 * c0, x1 = 2 * (c0 + k)
-  const cellW = (x: number) => (x % 2 === 0 ? 3 : W)
+  const cellW = (x: number) => (x % 2 === 0 ? 2 * (chans.get(x) ?? 1) + 1 : W)
   const station = new Map<string, string>() // "r,x" -> node
   for (const [n, l] of layer) station.set(`${lineOf.get(n)},${2 * l + 1}`, n)
 
@@ -186,19 +201,17 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
     return ' '.repeat(left) + t + ' '.repeat(w - t.length - left)
   }
 
-  // The link passing down from track r at x, preferring a lit one.
-  const linkBelow = (r: number, x: number) => {
-    const here = links.filter(l => l.x === x && l.r1 <= r && r < l.r2)
-    return here.find(l => l.isLit) ?? here[0]
-  }
+  // The links in a gap's channel (column i of the cell) that span track r, lit one first.
+  const inChannel = (x: number, i: number, r: number, below = false) =>
+    links.filter(l => l.x === x && at(l) === i && l.r1 <= r && (below ? r < l.r2 : r <= l.r2)).sort((p, q) => +q.isLit - +p.isLit)
 
-  // A label or bracket cell: blank, or the link passing down through it.
+  // A label or bracket cell: blank, or the links passing down through it.
   const under = (row: Seg[], r: number, x: number) => {
-    const w = cellW(x), mid = Math.floor(w / 2), below = linkBelow(r, x)
-    if (!below) return push(row, { text: ' '.repeat(w) })
-    push(row, { text: ' '.repeat(mid) })
-    push(row, { text: '┃', color: below.isLit ? below.color : DIM })
-    push(row, { text: ' '.repeat(w - mid - 1) })
+    if (x % 2) return push(row, { text: ' '.repeat(cellW(x)) })
+    for (let i = 0; i < cellW(x); i++) {
+      const l = inChannel(x, i, r, true)[0]
+      push(row, l ? { text: '┃', color: l.isLit ? l.color : DIM } : { text: ' ' })
+    }
   }
 
   for (let r = 0; r < R; r++) {
@@ -208,20 +221,38 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
       const w = cellW(x), mid = Math.floor(w / 2)
       const [lo, hi] = span[r]!
       const left = x > lo && x <= hi, right = x >= lo && x < hi
-      const vs = links.filter(l => l.x === x && l.r1 <= r && r <= l.r2)
-      const up = vs.some(l => l.r1 < r), down = vs.some(l => l.r2 > r)
       const node = station.get(`${r},${x}`)
+      if (x % 2 === 0) {
+        // A gap: the track where it runs, a junction for each channel that joins it, and a bridge where a channel only
+        // crosses: the track stops a column short either side, so the crossing never reads as a connection.
+        const joins = links.filter(l => l.x === x && (l.ra === r || l.rb === r)).map(at)
+        const from = left ? 0 : Math.min(...joins), to = right ? w - 1 : Math.max(...joins)
+        const litL = isLit(r, x, 'left'), litR = isLit(r, x, 'right')
+        const jlo = joins.length ? Math.min(...joins) : mid, jhi = joins.length ? Math.max(...joins) : mid
+        const cell: Seg[] = [], bridges = new Set<number>()
+        for (let i = 0; i < w; i++) {
+          const ls = inChannel(x, i, r), on = from <= i && i <= to
+          const trackLit = i < jlo ? litL : i > jhi ? litR : litL || litR
+          if (ls.some(l => l.ra === r || l.rb === r)) {
+            const u = ls.some(l => l.r1 < r), d = ls.some(l => l.r2 > r)
+            cell.push({ text: BOX[`${+u}${+d}${+(i > from && on)}${+(i < to && on)}`] ?? '━',
+              color: ls[0]!.isLit ? ls[0]!.color : trackLit ? color : u || d ? DIM : color })
+          } else if (ls.length) {
+            cell.push({ text: '┃', color: ls[0]!.isLit ? ls[0]!.color : DIM })
+            if (on) bridges.add(i)
+          }
+          else cell.push(on ? { text: '━', color: trackLit ? color : DIM } : { text: ' ' })
+        }
+        cell.forEach((c, i) => push(track, c.text === '━' && (bridges.has(i - 1) || bridges.has(i + 1)) ? { text: ' ' } : c))
+        for (const row of [label, label2]) under(row, r, x)
+        continue
+      }
       const fill = (on: boolean, side: 'left' | 'right', n: number): Seg =>
         on ? { text: '━'.repeat(n), color: isLit(r, x, side) ? color : DIM } : { text: ' '.repeat(n) }
       push(track, fill(left, 'left', mid))
-      if (node) push(track, STATION[statusOf(node)])
-      else {
-        const key = `${+up}${+down}${+left}${+right}`
-        const g = BOX[key] ?? (left || right ? '━' : ' ')
-        const lit = vs.find(l => l.isLit)
-        const litL = isLit(r, x, 'left'), litR = isLit(r, x, 'right')
-        push(track, { text: g, color: lit ? lit.color : litL && litR ? color : up || down || !(litL || litR) ? DIM : color })
-      }
+      // A station column: the station, or the track running through.
+      push(track, node ? STATION[statusOf(node)] : left || right
+        ? { text: '━', color: isLit(r, x, 'left') || isLit(r, x, 'right') ? color : DIM } : { text: ' ' })
       push(track, fill(right, 'right', w - mid - 1))
       // Label rows: station names, and links passing down to the next track.
       if (node) {

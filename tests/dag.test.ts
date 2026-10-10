@@ -109,6 +109,24 @@ test('a link with no clear path is left out rather than drawn through another st
   expect(text.filter(t => t.includes('●')).length).toBe(2) // both tracks still drawn
 })
 
+test('two sources fanning out through one gap get a vertical each', async () => {
+  // S and Q both feed A and B (nanoseq's SAMPLESHEET_CHECK and QCAT): one shared vertical can't say who feeds whom.
+  const nodes = ['W:S', 'W:Q', 'W:A', 'W:B']
+  const edges: [string, string][] = [['W:S', 'W:A'], ['W:S', 'W:B'], ['W:Q', 'W:A'], ['W:Q', 'W:B']]
+  const text = metro(nodes, edges, () => 'done', 200).rows.map(r => r.map(s => s.text).join(''))
+  expect(text[0]).toContain('┳━┳')
+  expect(text[2]).toContain('┻━┻')
+})
+
+test('a link crossing a track it does not join is bridged, not drawn as a junction', async () => {
+  // A -> W runs down past X's track.
+  const nodes = ['W:A', 'W:X', 'W:B', 'W:W', 'W:Y']
+  const edges: [string, string][] = [['W:A', 'W:B'], ['W:A', 'W:W'], ['W:X', 'W:Y']]
+  const x = metro(nodes, edges, () => 'done', 200).rows[2]!.map(s => s.text).join('')
+  expect(x).toMatch(/━ ┃ ━/)
+  expect(x).not.toContain('╋')
+})
+
 test('a long station name wraps onto a second label row at an underscore', async () => {
   const { rows } = metro(['W:GATK4_MARKDUPLICATES', 'W:FASTQC'], [['W:GATK4_MARKDUPLICATES', 'W:FASTQC']], () => 'done', 60)
   const text = rows.map(r => r.map(s => s.text).join(''))
