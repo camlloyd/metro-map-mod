@@ -98,6 +98,17 @@ test('a shortcut edge is drawn once, through the path that already makes it (tra
   expect(x.match(/[┳┻┣┫┏┓┗┛╋]/g)?.length).toBe(1) // one link, to B
 })
 
+test('a link with no clear path is left out rather than drawn through another station', async () => {
+  // A -> D must ride its own track past B or D's track past Y: either way it would read as feeding one.
+  const nodes = ['W:A', 'W:B', 'W:C', 'W:X', 'W:Y', 'W:D']
+  const edges: [string, string][] = [['W:A', 'W:B'], ['W:B', 'W:C'], ['W:X', 'W:Y'], ['W:Y', 'W:D'], ['W:A', 'W:D']]
+  const { rows } = metro(nodes, edges, () => 'done', 200)
+  const text = rows.map(r => r.map(s => s.text).join(''))
+  // A -> D is the only edge between the two tracks, so nothing vertical is drawn at all.
+  expect(text.some(t => /[┃┳┻┣┫┏┓┗┛╋]/.test(t))).toBe(false)
+  expect(text.filter(t => t.includes('●')).length).toBe(2) // both tracks still drawn
+})
+
 test('a long station name wraps onto a second label row at an underscore', async () => {
   const { rows } = metro(['W:GATK4_MARKDUPLICATES', 'W:FASTQC'], [['W:GATK4_MARKDUPLICATES', 'W:FASTQC']], () => 'done', 60)
   const text = rows.map(r => r.map(s => s.text).join(''))

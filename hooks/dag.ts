@@ -126,13 +126,15 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
     if (ra === rb) continue
     const isBranch = lines[rb]![0] === b, isJoin = lines[ra]!.at(-1) === a
     // The link rides a's track to x, then b's: pick an x where neither ride passes a station it does not connect,
-    // so it never reads as feeding one. ponytail: with no such x (both tracks busy) it takes the default anyway.
+    // so it never reads as feeding one. With no such x (both tracks busy all the way) the link isn't drawn: a missing
+    // line is a gap in the map, a misplaced one is a wrong edge.
     const xa = 2 * layer.get(a)! + 1, xb = 2 * layer.get(b)! + 1, clear = (r: number, lo: number, hi: number) =>
       !lines[r]!.some(n => lo < 2 * layer.get(n)! + 1 && 2 * layer.get(n)! + 1 < hi)
     const fits = (x: number) => clear(ra, xa, x) && clear(rb, x, xb)
     const preferred = isJoin && !isBranch ? xa + 1 : xb - 1
     const gaps = Array.from({ length: (xb - xa) / 2 }, (_, i) => xa + 1 + 2 * i)
-    const x = [preferred, ...gaps].find(fits) ?? preferred
+    const x = [preferred, ...gaps].find(fits)
+    if (x === undefined) continue
     links.push({ a, b, x, r1: Math.min(ra, rb), r2: Math.max(ra, rb), ra, rb, isLit: taken(a) && taken(b),
       color: PALETTE[(isBranch || !isJoin ? rb : ra) % PALETTE.length]! })
     for (const r of [ra, rb]) span[r] = [Math.min(span[r]![0], x), Math.max(span[r]![1], x)]
