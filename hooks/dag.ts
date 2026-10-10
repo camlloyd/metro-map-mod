@@ -168,16 +168,26 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
     litSpans[r]!.some(([lo, hi]) => (side === 'left' ? lo < x && x <= hi : lo <= x && x < hi))
 
   // Fit: shrink station columns, then window around the first column still running or pending, moved `shift` columns.
-  // Sized as if every gap were as wide as the widest, so any window fits.
+  const cellW = (x: number) => (x % 2 === 0 ? 2 * (chans.get(x) ?? 1) + 1 : W)
+  let gaps = 0
+  for (let x = 0; x <= 2 * L; x += 2) gaps += cellW(x)
+  const W = Math.max(10, Math.min(14, Math.floor((width - gaps) / L)))
+  // Columns c..c+n-1 with the gaps either side, at their real widths.
+  const widthOf = (c: number, n: number) => {
+    let w = cellW(2 * c)
+    for (let i = c; i < c + n; i++) w += W + cellW(2 * i + 2)
+    return w
+  }
+  // Start from a window that fits even if every gap were the widest, then widen it while its real gaps still fit.
   const G = 2 * Math.max(1, ...chans.values()) + 1
-  const fitW = (cols: number) => Math.floor((width - G * (cols + 1)) / cols)
-  const W = Math.max(10, Math.min(14, fitW(L)))
-  const k = Math.max(1, Math.min(L, Math.floor((width - G) / (W + G))))
+  let k = Math.max(1, Math.min(L, Math.floor((width - G) / (W + G))))
   const active = order.find(n => statusOf(n) !== 'done')
   const window = (at: number) => Math.max(0, Math.min(L - k, at))
-  const follow = window((active ? layer.get(active)! : L) - 1), c0 = window(follow + shift)
+  const follow = window((active ? layer.get(active)! : L) - 1)
+  let c0 = window(follow + shift)
+  while (c0 + k < L && widthOf(c0, k + 1) <= width) k++
+  while (c0 > 0 && widthOf(c0 - 1, k + 1) <= width) { c0--; k++ } // at the right end, widen leftwards
   const x0 = 2 * c0, x1 = 2 * (c0 + k)
-  const cellW = (x: number) => (x % 2 === 0 ? 2 * (chans.get(x) ?? 1) + 1 : W)
   const station = new Map<string, string>() // "r,x" -> node
   for (const [n, l] of layer) station.set(`${lineOf.get(n)},${2 * l + 1}`, n)
 

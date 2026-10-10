@@ -127,6 +127,17 @@ test('a link crossing a track it does not join is bridged, not drawn as a juncti
   expect(x).not.toContain('╋')
 })
 
+test('one crowded gap does not shrink the whole window', async () => {
+  // A chain of 12, and three sources each feeding the same two targets: one gap needs three channels.
+  const chain = Array.from({ length: 12 }, (_, i) => `W:C${i}`)
+  const nodes = [...chain, 'W:S1', 'W:S2', 'W:S3', 'W:T1', 'W:T2']
+  const edges: [string, string][] = [...chain.slice(1).map((n, i) => [chain[i]!, n] as [string, string]),
+    ...['S1', 'S2', 'S3'].flatMap(s => ['T1', 'T2'].map(t => [`W:${s}`, `W:${t}`] as [string, string]))]
+  const widest = Math.max(...metro(nodes, edges, () => 'pending', 100).rows.map(r => r.map(s => s.text).join('').trimEnd().length))
+  expect(widest).toBeGreaterThanOrEqual(90) // sized for the widest gap everywhere, it used 83
+  expect(widest).toBeLessThanOrEqual(100)
+})
+
 test('a long station name wraps onto a second label row at an underscore', async () => {
   const { rows } = metro(['W:GATK4_MARKDUPLICATES', 'W:FASTQC'], [['W:GATK4_MARKDUPLICATES', 'W:FASTQC']], () => 'done', 60)
   const text = rows.map(r => r.map(s => s.text).join(''))
