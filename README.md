@@ -2,21 +2,7 @@
 
 A Claude Code [mod](https://code.claude.com/docs/en/plugins/mods/overview): when Claude runs a [Nextflow](https://www.nextflow.io) pipeline, a pane draws the pipeline as a live metro map.
 
-```
-FETCHNGS · stupefied_becquerel
-         ●━━━━━━━━━━━━━━●━━━━━━┳╌╌╌╌╌╌╌◌╌╌╌╌╌╌┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━●
-   SRA_IDS_TO_    SRA_RUNINFO_ ┃  ASPERA_CLI  ┃                             ╎   MULTIQC_
-     RUNINFO         TO_FTP    ┃              ┃                             ╎ MAPPIN…ONFIG
-                               ┣╌╌╌╌╌╌╌◌╌╌╌╌╌╌┫                             ╎
-                               ┃  SRA_FASTQ_  ┃                             ╎
-                               ┃     FTP      ┃                             ╎
-                               ┣━━━━━━━●━━━━━━┫                             ╎
-                               ╎   FASTQDL    ╎                             ╎
-                               ╌╌╌╌╌╌╌╌◌╌╌╌╌╌╌╌╌╌╌╌╌╌╌◌╌╌╌╌╌╌╌╌╌╌╌╌╌╌◌╌╌╌╌╌╌╌
-                                   CUSTOM_       SRATOOLS_      SRATOOLS_
-                                 SRATOO…TINGS     PREFETCH     FASTERQDUMP
-                                 ╰ FASTQ_DOWNLOAD_PREFETCH_FASTERQDUMP_SR─╯
-```
+![The metro map pane after an nf-core/fetchngs run: the FASTQDL route lit, the other download routes never ran](docs/metro-map.png)
 
 `○` pending · `◉` running · `●` done · `✖` failed · `◌` never ran
 
