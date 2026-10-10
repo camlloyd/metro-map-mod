@@ -171,7 +171,7 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
   const cellW = (x: number) => (x % 2 === 0 ? 2 * (chans.get(x) ?? 1) + 1 : W)
   let gaps = 0
   for (let x = 0; x <= 2 * L; x += 2) gaps += cellW(x)
-  const W = Math.max(10, Math.min(14, Math.floor((width - gaps) / L)))
+  let W = Math.max(10, Math.min(14, Math.floor((width - gaps) / L)))
   // Columns c..c+n-1 with the gaps either side, at their real widths.
   const widthOf = (c: number, n: number) => {
     let w = cellW(2 * c)
@@ -187,6 +187,7 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
   let c0 = window(follow + shift)
   while (c0 + k < L && widthOf(c0, k + 1) <= width) k++
   while (c0 > 0 && widthOf(c0 - 1, k + 1) <= width) { c0--; k++ } // at the right end, widen leftwards
+  W = Math.max(1, W - Math.max(0, widthOf(c0, k) - width)) // one column with wide gaps in a narrow pane: narrow the station
   const x0 = 2 * c0, x1 = 2 * (c0 + k)
   const station = new Map<string, string>() // "r,x" -> node
   for (const [n, l] of layer) station.set(`${lineOf.get(n)},${2 * l + 1}`, n)
