@@ -67,12 +67,12 @@ export function pipelineOf(nodes: readonly string[]): { title: string; depth: nu
 /**
  * Draws the DAG as an nf-core-style metro map, left to right: each analysis route a coloured line through
  * its stations (processes) by graph depth, forks and merges as vertical links, subworkflows as bracketed sections.
- * Returns rows of styled segments sized to `width` columns, and which columns they show
- * (`count` of `of` from `from`; `follow` is where the window sits unshifted).
+ * Returns rows of styled segments sized to `width` columns, and when the map is wider than that, the `shift` that
+ * pages `back` or `forward` (undefined at that end).
  */
 export function metro(nodes: readonly string[], edges: readonly (readonly [string, string])[],
-  statusOf: (n: string) => Status, width: number, shift = 0): { rows: Seg[][]; title: string; from: number; follow: number; count: number; of: number } {
-  if (nodes.length === 0) return { rows: [], title: '', from: 0, follow: 0, count: 0, of: 0 }
+  statusOf: (n: string) => Status, width: number, shift = 0): { rows: Seg[][]; title: string; back?: number; forward?: number } {
+  if (nodes.length === 0) return { rows: [], title: '' }
   // Transitive reduction: drop a -> c when another of a's children already reaches c (a reference file handed to every
   // later step), so the map keeps every connection but draws each only once.
   const out = new Map<string, string[]>()
@@ -299,5 +299,7 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
     }
     rows.push(bracket)
   }
-  return { rows, title, from: c0, follow, count: k, of: L }
+  // A page less one column, so one station stays in view; measured from where it shows, so an end doesn't stick.
+  const step = Math.max(1, k - 1)
+  return { rows, title, back: c0 > 0 ? c0 - step - follow : undefined, forward: c0 + k < L ? c0 + step - follow : undefined }
 }
