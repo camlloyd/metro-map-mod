@@ -16,9 +16,9 @@ test('folds operators away, keeping process->process edges', async () => {
 test('draws a metro map: one track per route, branch and join links, sections', async () => {
   const { nodes, edges } = parseDot(DOT)
   const status = (n: string): Status => (n.endsWith('FASTQC') ? 'done' : n.endsWith('TRIMGALORE') ? 'running' : 'pending')
-  const { rows, title, count, of } = metro(nodes, edges, status, 120)
+  const { rows, title, back, forward } = metro(nodes, edges, status, 120)
   const text = rows.map(r => r.map(s => s.text).join('').trimEnd()).join('\n')
-  expect(count).toBe(of) // it all fits
+  expect([back, forward]).toEqual([undefined, undefined]) // it all fits
   expect(text).toContain('┳')
   expect(text).toContain('┗')
   expect(text).toContain('┛')
@@ -176,14 +176,26 @@ test('a taken route stays lit along a shared track past an untaken route joining
   }
 })
 
-test('a map too wide for the pane shows a window that shifts and stops at the ends', async () => {
+test('a map too wide for the pane pages back and forward, and stops at the ends', async () => {
   const nodes = Array.from({ length: 12 }, (_, i) => `NF:P:STEP_${i}`)
   const edges = nodes.slice(1).map((n, i) => [nodes[i]!, n] as const)
   const first = (n: string): Status => (n === nodes[0] ? 'running' : 'pending')
-  const auto = metro(nodes, edges, first, 60)
-  expect(auto.count).toBeLessThan(auto.of)
-  expect([auto.from, auto.follow]).toEqual([0, 0])
-  expect(metro(nodes, edges, first, 60, 2).from).toBe(2)
-  expect(metro(nodes, edges, first, 60, 99).from).toBe(auto.of - auto.count) // clamped at the right
-  expect(metro(nodes, edges, first, 60, -5).from).toBe(0) // and the left
+  const at = (shift?: number) => metro(nodes, edges, first, 60, shift)
+  const start = at()
+  expect(start.back).toBe(undefined)
+  expect(start.forward).toBe(3) // four columns show; a page less one column
+  let m = start, presses = 0
+  while (m.forward !== undefined && presses < 20) { m = at(m.forward); presses++ }
+  expect([m.forward, presses]).toEqual([undefined, 3])
+  while (m.back !== undefined && presses < 40) { m = at(m.back); presses++ }
+  expect(m.rows).toEqual(start.rows)
+  expect(at(99).forward).toBe(undefined) // clamped at the right
+  expect(at(-5).back).toBe(undefined) // and the left
+  // Mid-run the window follows the running station; a press forward and back lands where it started.
+  const long = Array.from({ length: 20 }, (_, i) => `NF:P:STEP_${i}`)
+  const step6 = (n: string): Status => { const i = long.indexOf(n); return i < 6 ? 'done' : i === 6 ? 'running' : 'pending' }
+  const mid = (shift?: number) => metro(long, long.slice(1).map((n, i) => [long[i]!, n] as const), step6, 60, shift)
+  const follow = mid()
+  expect(mid(mid(follow.forward).back).rows).toEqual(follow.rows)
+  expect(mid(follow.back).rows).not.toEqual(follow.rows)
 })

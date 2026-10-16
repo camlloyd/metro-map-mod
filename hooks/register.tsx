@@ -156,20 +156,18 @@ export const register: Register = on => {
     const d = await read($, dag)
     if (d && d.runId === r.id && d.nodes.length > 0) {
       const byName = new Map(r.procs.map(p => [p.name, p]))
-      const { rows, title, from, follow, count, of } = metro(d.nodes, d.edges, n => {
+      const { rows, title, back, forward } = metro(d.nodes, d.edges, n => {
         const st = statusOf(byName.get(n))
         return st === 'pending' && r.status !== 'running' ? 'skipped' : st
       }, e.props.bodyColumns ?? e.viewport?.columns ?? 100, await read($, pan))
-      // A page less one column per press, so one station stays in view; set from where it shows, so an edge doesn't stick.
-      const step = Math.max(1, count - 1)
-      const move = (by: number) => () => void update($, pan, () => from + by - follow)
+      const move = (to: number) => () => void update($, pan, () => to)
       return (
         <Box flexDirection="column">
           <Text bold color={headColor}>{head}</Text>
           <Box flexDirection="row">
-            {from > 0 && <Button plain label="◀" onPress={move(-step)} />}
-            <Text dimColor>{from > 0 ? ' ' : ''}{[title, r.name].filter(Boolean).join(' · ')}{from + count < of ? ' ' : ''}</Text>
-            {from + count < of && <Button plain label="▶" onPress={move(step)} />}
+            {back !== undefined && <Button plain label="◀" onPress={move(back)} />}
+            <Text dimColor>{back !== undefined ? ' ' : ''}{[title, r.name].filter(Boolean).join(' · ')}{forward !== undefined ? ' ' : ''}</Text>
+            {forward !== undefined && <Button plain label="▶" onPress={move(forward)} />}
           </Box>
           {rows.slice(0, room).map(row => (
             <Text wrap="truncate">
