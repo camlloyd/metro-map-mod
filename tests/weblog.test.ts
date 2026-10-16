@@ -81,6 +81,12 @@ test('turns the logged command into a preview', async () => {
   expect(previewArgv('nextflow run main.nf -resume 4dc656d2-c410-44c8-bc32-7dd0ea87bebf', '/t')!.slice(4, 7)).toEqual(['run', 'main.nf', '-preview'])
 })
 
+test("the preview writes none of the run's own files and reports nowhere", async () => {
+  // Its report.html would be written first, and the real run then refuses to overwrite it.
+  const line = 'nextflow run main.nf -with-report r.html -with-trace -with-timeline t.html -with-tower -N me@x.org --x 1'
+  expect(previewArgv(line, '/t')!.slice(4, 8)).toEqual(['run', 'main.nf', '--x', '1'])
+})
+
 test('station state from task counts', async () => {
   const p = (submitted: number, completed: number, failed = 0, cached = 0) => ({ name: 'P', submitted, completed, failed, cached })
   expect(statusOf(undefined)).toBe('pending')
