@@ -64,15 +64,15 @@ export function pipelineOf(nodes: readonly string[]): { title: string; depth: nu
   return { title: paths[0]?.slice(0, depth).at(-1) ?? '', depth }
 }
 
+/** A link between two tracks: it rides a's track to gap `x`, turns down or up in channel `chan` of that gap, then rides b's. */
+export type Link = { a: string; b: string; x: number; chan: number; r1: number; r2: number; ra: number; rb: number; color: string }
+
 /**
- * Draws the DAG as an nf-core-style metro map, left to right: each analysis route a coloured line through
- * its stations (processes) by graph depth, forks and merges as vertical links, subworkflows as bracketed sections.
- * Returns rows of styled segments sized to `width` columns, and when the map is wider than that, the `shift` that
- * pages `back` or `forward` (undefined at that end).
+ * The metro map's shape, before any run status or pane width: each process's layer (graph depth), each route a track,
+ * and where each link between tracks turns. Positions count gaps and stations together: an even x is the gap before
+ * station column x/2, an odd x is station column (x-1)/2.
  */
-export function metro(nodes: readonly string[], edges: readonly (readonly [string, string])[],
-  statusOf: (n: string) => Status, width: number, shift = 0): { rows: Seg[][]; title: string; back?: number; forward?: number } {
-  if (nodes.length === 0) return { rows: [], title: '' }
+export function layout(nodes: readonly string[], edges: readonly (readonly [string, string])[]) {
   // Transitive reduction: drop a -> c when another of a's children already reaches c (a reference file handed to every
   // later step), so the map keeps every connection but draws each only once.
   const out = new Map<string, string[]>()
@@ -117,10 +117,8 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
     }
     lines.push(path)
   }
-  const R = lines.length // x: even = gap before column x/2, odd = station column
   const span = lines.map(p => [2 * layer.get(p[0]!)! + 1, 2 * layer.get(p[p.length - 1]!)! + 1] as [number, number])
-  const taken = (n: string) => statusOf(n) !== 'pending' && statusOf(n) !== 'skipped'
-  const links: { a: string; b: string; x: number; r1: number; r2: number; color: string; isLit: boolean; ra: number; rb: number }[] = []
+  const links: Link[] = []
   for (const [a, b] of edges) {
     const ra = lineOf.get(a)!, rb = lineOf.get(b)!
     if (ra === rb) continue
@@ -135,28 +133,41 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
     const gaps = Array.from({ length: (xb - xa) / 2 }, (_, i) => xa + 1 + 2 * i)
     const x = [preferred, ...gaps].find(fits)
     if (x === undefined) continue
-    links.push({ a, b, x, r1: Math.min(ra, rb), r2: Math.max(ra, rb), ra, rb, isLit: taken(a) && taken(b),
+    links.push({ a, b, x, chan: 0, r1: Math.min(ra, rb), r2: Math.max(ra, rb), ra, rb,
       color: PALETTE[(isBranch || !isJoin ? rb : ra) % PALETTE.length]! })
     for (const r of [ra, rb]) span[r] = [Math.min(span[r]![0], x), Math.max(span[r]![1], x)]
   }
 
   // Channels: links with no end in common that would overlap in a gap get side-by-side verticals, so each vertical
   // carries one source's fan-out or one target's fan-in, never two unrelated links.
-  type Link = (typeof links)[number]
-  const chan = new Map<Link, number>(), chans = new Map<number, number>() // link -> channel, gap x -> channel count
-  for (const l of links) {
-    const clash = links.filter(q => chan.has(q) && q.x === l.x && q.r1 <= l.r2 && l.r1 <= q.r2 && q.a !== l.a && q.b !== l.b)
-    let c = 0
-    while (clash.some(q => chan.get(q) === c)) c++
-    chan.set(l, c)
-    chans.set(l.x, Math.max(chans.get(l.x) ?? 1, c + 1))
+  const chans = new Map<number, number>() // gap x -> channel count
+  for (const [i, l] of links.entries()) {
+    const clash = links.slice(0, i).filter(q => q.x === l.x && q.r1 <= l.r2 && l.r1 <= q.r2 && q.a !== l.a && q.b !== l.b)
+    while (clash.some(q => q.chan === l.chan)) l.chan++
+    chans.set(l.x, Math.max(chans.get(l.x) ?? 1, l.chan + 1))
   }
-  const at = (l: Link) => 1 + 2 * chan.get(l)! // a channel's column within its gap
+  return { title, section, order, layer, L, lines, lineOf, span, links, chans, edges }
+}
+
+/**
+ * Draws the DAG as an nf-core-style metro map, left to right: each analysis route a coloured line through
+ * its stations (processes) by graph depth, forks and merges as vertical links, subworkflows as bracketed sections.
+ * Returns rows of styled segments sized to `width` columns, and when the map is wider than that, the `shift` that
+ * pages `back` or `forward` (undefined at that end).
+ */
+export function metro(nodes: readonly string[], edges: readonly (readonly [string, string])[],
+  statusOf: (n: string) => Status, width: number, shift = 0): { rows: Seg[][]; title: string; back?: number; forward?: number } {
+  if (nodes.length === 0) return { rows: [], title: '' }
+  const { title, section, order, layer, L, lines, lineOf, span, links, chans, edges: drawn } = layout(nodes, edges)
+  const R = lines.length
+  const taken = (n: string) => statusOf(n) !== 'pending' && statusOf(n) !== 'skipped'
+  const lit = (l: Link) => taken(l.a) && taken(l.b)
+  const at = (l: Link) => 1 + 2 * l.chan // a channel's column within its gap
 
   // Lit stretches per track: where each edge that ran is drawn. A link runs along its source's track to its x,
   // then along its target's track.
   const litSpans: [number, number][][] = lines.map(() => [])
-  for (const [a, b] of edges) {
+  for (const [a, b] of drawn) {
     if (!taken(a) || !taken(b)) continue
     const ra = lineOf.get(a)!, rb = lineOf.get(b)!, xa = 2 * layer.get(a)! + 1, xb = 2 * layer.get(b)! + 1
     const l = links.find(k => k.a === a && k.b === b)
@@ -214,14 +225,14 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
 
   // The links in a gap's channel (column i of the cell) that span track r, lit one first.
   const inChannel = (x: number, i: number, r: number, below = false) =>
-    links.filter(l => l.x === x && at(l) === i && l.r1 <= r && (below ? r < l.r2 : r <= l.r2)).sort((p, q) => +q.isLit - +p.isLit)
+    links.filter(l => l.x === x && at(l) === i && l.r1 <= r && (below ? r < l.r2 : r <= l.r2)).sort((p, q) => +lit(q) - +lit(p))
 
   // A label or bracket cell: blank, or the links passing down through it.
   const under = (row: Seg[], r: number, x: number) => {
     if (x % 2) return push(row, { text: ' '.repeat(cellW(x)) })
     for (let i = 0; i < cellW(x); i++) {
       const l = inChannel(x, i, r, true)[0]
-      push(row, l ? { text: '┃', color: l.isLit ? l.color : DIM } : { text: ' ' })
+      push(row, l ? { text: '┃', color: lit(l) ? l.color : DIM } : { text: ' ' })
     }
   }
 
@@ -247,9 +258,9 @@ export function metro(nodes: readonly string[], edges: readonly (readonly [strin
           if (ls.some(l => l.ra === r || l.rb === r)) {
             const u = ls.some(l => l.r1 < r), d = ls.some(l => l.r2 > r)
             cell.push({ text: BOX[`${+u}${+d}${+(i > from && on)}${+(i < to && on)}`] ?? '━',
-              color: ls[0]!.isLit ? ls[0]!.color : trackLit ? color : u || d ? DIM : color })
+              color: lit(ls[0]!) ? ls[0]!.color : trackLit ? color : u || d ? DIM : color })
           } else if (ls.length) {
-            cell.push({ text: '┃', color: ls[0]!.isLit ? ls[0]!.color : DIM })
+            cell.push({ text: '┃', color: lit(ls[0]!) ? ls[0]!.color : DIM })
             if (on) bridges.add(i)
           }
           else cell.push(on ? { text: '━', color: trackLit ? color : DIM } : { text: ' ' })
