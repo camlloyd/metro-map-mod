@@ -18,7 +18,7 @@ claude plugin marketplace add camlloyd/metro-map-mod
 claude plugin install metro-map-mod@metro-map-mod
 ```
 
-Needs Nextflow and `python3`. `/metro-map` opens the pane.
+Needs Nextflow and `python3`. The pane opens when a run starts; `/metro-map` reopens it.
 
 Try it: ask Claude to run
 
