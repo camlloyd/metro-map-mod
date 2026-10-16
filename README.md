@@ -6,6 +6,11 @@ A Claude Code [mod](https://code.claude.com/docs/en/plugins/mods/overview): when
 
 `○` pending · `◉` running · `●` done · `✖` failed · `◌` never ran
 
+A map wider than the pane follows the running stations; `◀` / `▶` beside the title,
+shown only when there's more that way, move it (click, or ctrl+x tab then Enter).
+When the run ends, a toast says how it went: `fetchngs done in 2m 3s · 6 succeeded`, or
+`fetchngs failed after 40s at SRA_FASTQ_FTP`.
+
 ## Install
 
 ```bash
@@ -13,7 +18,7 @@ claude plugin marketplace add camlloyd/metro-map-mod
 claude plugin install metro-map-mod@metro-map-mod
 ```
 
-Needs Nextflow and `python3`. `/metro-map` opens the pane.
+Needs Nextflow and `python3`. The pane opens when a run starts; `/metro-map` reopens it.
 
 Try it: ask Claude to run
 
@@ -29,10 +34,6 @@ nextflow run nf-core/fetchngs -profile test,docker --input ids.csv --download_me
 - Re-runs the command once with `-preview -with-dag` for the graph, in
   `.nextflow/metro-map/` with its own `NXF_CACHE_DIR`, so your history is untouched.
 - On `-resume`, cached tasks come from `.nextflow.log`.
-- A map wider than the pane follows the running stations; `◀` / `▶` beside the title,
-  shown only when there's more that way, move it (click, or ctrl+x tab then Enter).
-- When the run ends, a toast says how it went: `fetchngs done in 2m 3s · 6 succeeded`, or
-  `fetchngs failed after 40s at SRA_FASTQ_FTP`.
 
 ## Develop
 
