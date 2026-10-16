@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { DIM, metro, PALETTE, parseDot, STATION } from '../hooks/dag'
+import { DIM, layout, metro, PALETTE, parseDot, STATION } from '../hooks/dag'
 import type { Seg, Status } from '../hooks/dag'
 
 const DOT = "digraph \"dag\" {\nrankdir=TB;\nv0 [shape=point,label=\"\",fixedsize=true,width=0.1,xlabel=\"Channel.of\"];\nv1 [label=\"NFCORE_TOY:RNASEQ:FASTQ_QC_TRIM:FASTQC\"];\nv0 -> v1 [label=\"r\"];\n\nv1 [label=\"NFCORE_TOY:RNASEQ:FASTQ_QC_TRIM:FASTQC\"];\nv2 [label=\"NFCORE_TOY:RNASEQ:FASTQ_QC_TRIM:TRIMGALORE\"];\nv1 -> v2 [label=\"s\"];\n\nv2 [label=\"NFCORE_TOY:RNASEQ:FASTQ_QC_TRIM:TRIMGALORE\"];\nv3 [label=\"NFCORE_TOY:RNASEQ:ALIGN_STAR:STAR_ALIGN\"];\nv2 -> v3 [label=\"r\"];\n\nv3 [label=\"NFCORE_TOY:RNASEQ:ALIGN_STAR:STAR_ALIGN\"];\nv4 [label=\"NFCORE_TOY:RNASEQ:ALIGN_STAR:SAMTOOLS_SORT\"];\nv3 -> v4 [label=\"s\"];\n\nv4 [label=\"NFCORE_TOY:RNASEQ:ALIGN_STAR:SAMTOOLS_SORT\"];\nv6 [shape=circle,label=\"\",fixedsize=true,width=0.1,xlabel=\"mix\"];\nv4 -> v6 [label=\"s\"];\n\nv2 [label=\"NFCORE_TOY:RNASEQ:FASTQ_QC_TRIM:TRIMGALORE\"];\nv5 [label=\"NFCORE_TOY:RNASEQ:SALMON_QUANT\"];\nv2 -> v5 [label=\"r\"];\n\nv5 [label=\"NFCORE_TOY:RNASEQ:SALMON_QUANT\"];\nv6 [shape=circle,label=\"\",fixedsize=true,width=0.1,xlabel=\"mix\"];\nv5 -> v6 [label=\"s\"];\n\nv6 [shape=circle,label=\"\",fixedsize=true,width=0.1,xlabel=\"mix\"];\nv7 [shape=circle,label=\"\",fixedsize=true,width=0.1,xlabel=\"collect\"];\nv6 -> v7;\n\nv7 [shape=circle,label=\"\",fixedsize=true,width=0.1,xlabel=\"collect\"];\nv8 [label=\"NFCORE_TOY:RNASEQ:MULTIQC\"];\nv7 -> v8;\n\n}\n"
@@ -78,44 +78,42 @@ test('a join never rides a track through a station it does not feed (fetchngs: d
   const edges = ([['A', 'F'], ['F', 'NCBI'], ['F', 'ASPERA'], ['F', 'FTP'], ['F', 'DL'], ['F', 'PREFETCH'], ['NCBI', 'PREFETCH'],
     ['NCBI', 'DUMP'], ['PREFETCH', 'DUMP'], ['DUMP', 'MQC'], ['ASPERA', 'MQC'], ['FTP', 'MQC'], ['DL', 'MQC']] as const)
     .map(([a, b]) => [W(a), W(b)] as [string, string])
-  const { rows } = metro(nodes, edges, () => 'done', 200)
-  const t = rows.findIndex(r => r.filter(s => s.text === '●').length >= 5) // the trunk, through the sratools route
-  const text = rows[t]!.map(s => s.text).join('')
-  // Joins come onto the trunk only after its last station before MQC.
-  const stations = [...text].flatMap((c, i) => (c === '●' ? [i] : []))
-  const mqc = stations.at(-1)!, before = stations.at(-2)!
-  const firstJoin = [...text].findIndex((c, i) => i > stations[2]! && /[┳┻╋┫┣]/.test(c))
-  expect(firstJoin).toBeGreaterThan(before)
-  expect(firstJoin).toBeLessThan(mqc)
+  const { links, layer } = layout(nodes, edges)
+  const x = (n: string) => 2 * layer.get(W(n))! + 1
+  // The downloads join MQC's track only after its last station before MQC.
+  const joins = links.filter(l => l.b === W('MQC'))
+  expect(joins.map(l => l.a).sort()).toEqual(['ASPERA', 'DL', 'FTP'].map(W))
+  for (const j of joins) expect(x('DUMP') < j.x && j.x < x('MQC')).toBe(true)
 })
 
 test('a shortcut edge is drawn once, through the path that already makes it (transitive reduction)', async () => {
   // X feeds B and C, but C already follows B on the main line: X -> C needs no line of its own.
   const nodes = ['W:A', 'W:B', 'W:C', 'W:X']
   const edges: [string, string][] = [['W:A', 'W:B'], ['W:B', 'W:C'], ['W:X', 'W:B'], ['W:X', 'W:C']]
-  const { rows } = metro(nodes, edges, () => 'done', 200)
-  const x = rows.find(r => r.filter(s => s.text === '●').length === 1)!.map(s => s.text).join('') // X's track
-  expect(x.match(/[┳┻┣┫┏┓┗┛╋]/g)?.length).toBe(1) // one link, to B
+  const { edges: drawn, links } = layout(nodes, edges)
+  expect(drawn.some(([a, b]) => a === 'W:X' && b === 'W:C')).toBe(false)
+  expect(links.filter(l => l.a === 'W:X').map(l => l.b)).toEqual(['W:B'])
 })
 
 test('a link with no clear path is left out rather than drawn through another station', async () => {
   // A -> D must ride its own track past B or D's track past Y: either way it would read as feeding one.
   const nodes = ['W:A', 'W:B', 'W:C', 'W:X', 'W:Y', 'W:D']
   const edges: [string, string][] = [['W:A', 'W:B'], ['W:B', 'W:C'], ['W:X', 'W:Y'], ['W:Y', 'W:D'], ['W:A', 'W:D']]
-  const { rows } = metro(nodes, edges, () => 'done', 200)
-  const text = rows.map(r => r.map(s => s.text).join(''))
-  // A -> D is the only edge between the two tracks, so nothing vertical is drawn at all.
-  expect(text.some(t => /[┃┳┻┣┫┏┓┗┛╋]/.test(t))).toBe(false)
-  expect(text.filter(t => t.includes('●')).length).toBe(2) // both tracks still drawn
+  const { links, lines } = layout(nodes, edges)
+  expect(links).toEqual([]) // A -> D was the only link between the two tracks
+  expect(lines.length).toBe(2) // both tracks still drawn
 })
 
 test('two sources fanning out through one gap get a vertical each', async () => {
   // S and Q both feed A and B (nanoseq's SAMPLESHEET_CHECK and QCAT): one shared vertical can't say who feeds whom.
   const nodes = ['W:S', 'W:Q', 'W:A', 'W:B']
   const edges: [string, string][] = [['W:S', 'W:A'], ['W:S', 'W:B'], ['W:Q', 'W:A'], ['W:Q', 'W:B']]
-  const text = metro(nodes, edges, () => 'done', 200).rows.map(r => r.map(s => s.text).join(''))
-  expect(text[0]).toContain('┳━┳')
-  expect(text[2]).toContain('┻━┻')
+  const { links, chans } = layout(nodes, edges)
+  expect(links.map(l => `${l.a}>${l.b}`).sort()).toEqual(['W:Q>W:A', 'W:S>W:B'])
+  expect(links[0]!.x).toBe(links[1]!.x) // one gap
+  expect(links.map(l => l.chan)).toEqual([0, 1]) // a vertical each, the first link nearest the left
+  expect(chans.get(links[0]!.x)).toBe(2) // and the gap is drawn wide enough for both
+  for (const l of links) expect(l.color).toBe(PALETTE[l.rb]!) // neither ends a route, so each takes its target's colour
 })
 
 test('a link crossing a track it does not join is bridged, not drawn as a junction', async () => {
