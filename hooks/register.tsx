@@ -136,10 +136,7 @@ export const register: Register = on => {
   // Every `nextflow run` the agent starts reports to the listener.
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const command = weblogUrl && weblogConfig ? withWeblog(e.command, weblogUrl, weblogConfig) : undefined
-    if (!command) return next(e)
-    await update($, run, () => ({ id: '', name: '', dir: '', command: '', isResume: false, status: 'waiting', procs: [] }) satisfies Run)
-    void openPane($)
-    return next({ ...e, command })
+    return next(command ? { ...e, command } : e)
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
@@ -149,7 +146,7 @@ export const register: Register = on => {
 
     const room = Math.max(3, (e.viewport?.rows ?? 30) - 5)
     const { failed } = tally(r.procs)
-    const head = r.status === 'waiting' ? 'waiting for Nextflow to start…' : `${r.status}${failed ? ` · ${failed} failed` : ''}`
+    const head = `${r.status}${failed ? ` · ${failed} failed` : ''}`
     const headColor = r.status === 'failed' ? 'red' : r.status === 'done' ? 'green' : undefined
 
     // The metro map once the -preview DAG is in.

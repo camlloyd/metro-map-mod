@@ -1,5 +1,5 @@
 export type Proc = { name: string; submitted: number; completed: number; failed: number; cached: number }
-export type RunStatus = 'waiting' | 'running' | 'done' | 'failed'
+export type RunStatus = 'running' | 'done' | 'failed'
 /** A Nextflow run as its weblog events describe it. */
 export type Run = { id: string; name: string; dir: string; command: string; isResume: boolean; status: RunStatus; procs: Proc[]; startedAt?: number }
 /** The pipeline's DAG from `nextflow -preview -with-dag`: process names and process->process edges. */
